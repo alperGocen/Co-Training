@@ -4,7 +4,8 @@ from sklearn import svm
 from sklearn.metrics import accuracy_score
 from os import walk
 import numpy as np
-import FaceCropper as fc
+from LocalBinaryPatterns import LocalBinaryPatterns
+#import FaceCropper as fc
 from os import listdir
 from keras.preprocessing.image import load_img
 from keras.preprocessing.image import img_to_array
@@ -12,41 +13,76 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense
 import numpy as np
+from skimage import feature
+import numpy as np
 
     
 def extract_surf_features(img_to_extract):
     feature_vector = np.array([])
     surf = cv2.xfeatures2d.SURF_create()
-    surf.setHessianThreshold(400)   
+    surf.setHessianThreshold(800)   
     kp,des = surf.detectAndCompute(img_to_extract,None)
     i=0
+    if len(kp) < 50:
+        return None        
     for feature in des:
         feature_vector = np.append(feature_vector,feature)
         i+=1
         if i==50:
             break
     feature_vector = feature_vector.flatten()
-    feature_vector = feature_vector.reshape(-1,1) 
     return feature_vector 
 
+def extract_lbp_features(img_to_extract):
+    desc = LocalBinaryPatterns(98,8)
+    desc_feature = desc.describe(img_to_extract)
+    desc_feature = desc_feature.reshape(-1,1)
+    desc_feature = desc_feature.T  
+    return desc_feature
+
+def extract_all_lbp_features(directory):
+    features = []
+    for name in listdir(directory):
+        filename = directory + '/' + name
+        image = cv2.imread(filename,0)
+        if(image is not None):
+            feature_des = extract_lbp_features(image)
+            if feature_des is not None:
+                features.append(feature_des)
+        else:
+            continue
+    features = np.array(features)
+    return features
+    
+
+ec = extract_lbp_features('alper.jpeg')
+feat = extract_all_lbp_features('AdamSandler')
 
 def extract_all_features(directory):
-    features = np.array([])
+    features = []
     for name in listdir(directory):
         filename = directory + '/' + name
         image = cv2.imread(filename)
         if(image is not None):
-            features = np.append(features,extract_surf_features(image))
+            feature_des = extract_surf_features(image)
+            if feature_des is not None:
+                features.append(feature_des)
         else:
             continue
+    features = np.array(features)
     return features
 
 def createModel1(x_train,y_train,epochs,batch_size):
     model = Sequential()
     model.add(Dense(512, activation='relu',input_shape=(20,)))
+    model.add(Dense(512, activation='relu',input_shape=(20,)))
+    model.add(Dense(256,activation='relu'))
     model.add(Dense(256,activation='relu'))
     model.add(Dense(128,activation='relu'))
+    model.add(Dense(128,activation='relu'))
     model.add(Dense(64,activation='relu'))
+    model.add(Dense(64,activation='relu'))
+    model.add(Dense(32,activation='relu'))
     model.add(Dense(32,activation='relu'))
     model.add(Dense(10,activation='softmax'))
     model.summary()
@@ -60,21 +96,30 @@ def createModel1(x_train,y_train,epochs,batch_size):
 
 def createModel2(x_train,y_train,epochs,batch_size):
     model2 = Sequential()
-    model2.add(Dense(512, activation='relu',input_shape=(20,)))
+    model2.add(Dense(512, activation='relu',input_shape=(3200,)))
+    model2.add(Dense(512, activation='relu'))
     model2.add(Dense(512, activation='relu'))
     model2.add(Dense(256,activation='relu'))
     model2.add(Dense(256,activation='relu'))
+    model2.add(Dense(256,activation='relu'))
+    model2.add(Dense(128,activation='relu'))
+    model2.add(Dense(128,activation='relu'))
     model2.add(Dense(128,activation='relu'))
     model2.add(Dense(64,activation='relu'))
+    model2.add(Dense(64,activation='relu'))
+    model2.add(Dense(64,activation='relu'))
     model2.add(Dense(32,activation='relu'))
-    model2.add(Dense(10,activation='softmax'))
+    model2.add(Dense(32,activation='relu'))
+    model2.add(Dense(32,activation='relu'))
+    model2.add(Dense(2,activation='softmax'))
     model2.summary()
     
-    model2.compile(optimizer='adam', loss='categorical_crossentropy',metrics=['accuracy'])
+    model2.compile(optimizer='sgd', loss='binary_crossentropy',metrics=['accuracy'])
     
-    model2.fit(x_train, y_train,
+    model2.fit(x_train[300:], y_train[300:],
               epochs=epochs,
-              batch_size=batch_size)
+              
+              batch_size=batch_size,validation_data=(x_train[:300],y_train[:300]))
     return model2
 
 def getNextFit(out1,out2):    
@@ -94,10 +139,10 @@ def getNextFit(out1,out2):
      
     for i in range(len(out2[0])):
         if out2_max == out2[0][i]:
-           out2_class=np.append( out2_class,np.float32(1))
+           out2_class=np.append(out2_class,np.float32(1))
            
         else:
-           out2_class=np.append( out2_class,np.float32(0))
+           out2_class=np.append(out2_class,np.float32(0))
         i+=1
     
     print("Out1 prob : ",out1_max," class : ",out1_class)
@@ -118,14 +163,14 @@ y_train = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_
 x_train2 = np.random.random((1000, 20))
 y_train2 = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_classes=10)
 
-epochs = 20
-batch_size = 128
+epochs = 50
+batch_size = 32
 
 model1 = createModel1(x_train,y_train,epochs,batch_size)
-model2 = createModel2(x_train2,y_train2,epochs,batch_size)
 
 model1.evaluate(x_train2,y_train2)
 model2.evaluate(x_train,y_train)
+
 
 for i in range(50):
     x = np.random.random((1, 20))
@@ -135,16 +180,59 @@ for i in range(50):
     out_class,model_id =  getNextFit(out1,out2)
     
     if model_id == 1:
-         model1.fit(x,out_class,epochs=1,batch_size=128)
-    else:
          model2.fit(x,out_class,epochs=1,batch_size=128)
+    else:
+         model1.fit(x,out_class,epochs=1,batch_size=128)
         
 model1.evaluate(x_train2,y_train2)
 model2.evaluate(x_train,y_train)    
 
-img = cv2.imread('alper.jpeg')
+
 f = extract_surf_features(img)
-vector = extract_all_features('AaronJudge')
+vector_aaron = extract_all_features('AaronJudge')
+vector_adam = extract_all_features('AdamSandler')
+vector_set_y = np.array([],dtype=np.float32)
+
+
+
+total_set_x = []
+total_set_y = []
+for vector in vector_aaron:
+    total_set_x.append(vector)
+
+for vector in vector_adam:
+    total_set_x.append(vector)
+
+total_set_x = np.array(total_set_x)
+
+for i in range (0,len(vector_aaron)):
+    total_set_y.append([1.,0.])
+    
+for i in range(0,len(vector_adam)):
+    total_set_y.append([0.,1.])
+
+total_set_y= np.array(total_set_y)
+
+
+idx = np.random.permutation(len(total_set_x))
+total_set_x,total_set_y = total_set_x[idx],total_set_y[idx]
+
+
+
+
+
+model2 = createModel2(total_set_x,total_set_y,epochs,batch_size)
+model2.evaluate(total_set_x[:300],total_set_y[:300],batch_size=32)
+
+
+filename = 'AaronJudge' + '/' + "1.jpg"
+test=extract_surf_features(cv2.imread(filename))
+test = test.T
+test = test.reshape(-1,1)
+
+
+model2.predict(test,verbose=1)
+
 
 
 
