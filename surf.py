@@ -36,8 +36,6 @@ def extract_surf_features(img_to_extract):
 def extract_lbp_features(img_to_extract):
     desc = LocalBinaryPatterns(98,8)
     desc_feature = desc.describe(img_to_extract)
-    desc_feature = desc_feature.reshape(-1,1)
-    desc_feature = desc_feature.T  
     return desc_feature
 
 def extract_all_lbp_features(directory):
@@ -54,9 +52,10 @@ def extract_all_lbp_features(directory):
     features = np.array(features)
     return features
     
-
-ec = extract_lbp_features('alper.jpeg')
-feat = extract_all_lbp_features('AdamSandler')
+al = cv2.imread('alper.jpeg',0)
+ec = extract_lbp_features(al)
+feat_Aaron = extract_all_lbp_features('AaronJudge')
+feat_adam = extract_all_lbp_features('AdamSandler')
 
 def extract_all_features(directory):
     features = []
@@ -74,24 +73,35 @@ def extract_all_features(directory):
 
 def createModel1(x_train,y_train,epochs,batch_size):
     model = Sequential()
-    model.add(Dense(512, activation='relu',input_shape=(20,)))
-    model.add(Dense(512, activation='relu',input_shape=(20,)))
+    model.add(Dense(1024, activation='relu',input_shape=(100,)))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dense(256,activation='relu'))
     model.add(Dense(256,activation='relu'))
     model.add(Dense(256,activation='relu'))
     model.add(Dense(128,activation='relu'))
     model.add(Dense(128,activation='relu'))
+    model.add(Dense(128,activation='relu'))
+    model.add(Dense(64,activation='relu'))
     model.add(Dense(64,activation='relu'))
     model.add(Dense(64,activation='relu'))
     model.add(Dense(32,activation='relu'))
     model.add(Dense(32,activation='relu'))
-    model.add(Dense(10,activation='softmax'))
+    model.add(Dense(16,activation='relu'))
+    model.add(Dense(16,activation='relu'))
+    model.add(Dense(16,activation='relu'))
+    model.add(Dense(2,activation='softmax'))
     model.summary()
     
-    model.compile(optimizer='adam', loss='categorical_crossentropy',metrics=['accuracy'])
+    model.compile(optimizer=keras.optimizers.Adam(lr=0.0001), loss='categorical_crossentropy',metrics=['accuracy'])
     
-    model.fit(x_train, y_train,
+    model.fit(x_train[300:], y_train[300:],
               epochs=epochs,
-              batch_size=batch_size)
+              
+              batch_size=batch_size,validation_data=(x_train[:300],y_train[:300]))
     return model
 
 def createModel2(x_train,y_train,epochs,batch_size):
@@ -114,7 +124,7 @@ def createModel2(x_train,y_train,epochs,batch_size):
     model2.add(Dense(2,activation='softmax'))
     model2.summary()
     
-    model2.compile(optimizer='sgd', loss='binary_crossentropy',metrics=['accuracy'])
+    model2.compile(optimizer='Ada', loss='binary_crossentropy',metrics=['accuracy'])
     
     model2.fit(x_train[300:], y_train[300:],
               epochs=epochs,
@@ -158,15 +168,12 @@ def getNextFit(out1,out2):
 
 
 
-x_train = np.random.random((1000, 20))
-y_train = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_classes=10)
-x_train2 = np.random.random((1000, 20))
-y_train2 = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_classes=10)
 
-epochs = 50
+
+epochs = 200
 batch_size = 32
 
-model1 = createModel1(x_train,y_train,epochs,batch_size)
+
 
 model1.evaluate(x_train2,y_train2)
 model2.evaluate(x_train,y_train)
@@ -188,7 +195,8 @@ model1.evaluate(x_train2,y_train2)
 model2.evaluate(x_train,y_train)    
 
 
-f = extract_surf_features(img)
+
+
 vector_aaron = extract_all_features('AaronJudge')
 vector_adam = extract_all_features('AdamSandler')
 vector_set_y = np.array([],dtype=np.float32)
@@ -197,18 +205,18 @@ vector_set_y = np.array([],dtype=np.float32)
 
 total_set_x = []
 total_set_y = []
-for vector in vector_aaron:
+for vector in feat_Aaron:
     total_set_x.append(vector)
 
-for vector in vector_adam:
+for vector in feat_adam:
     total_set_x.append(vector)
 
 total_set_x = np.array(total_set_x)
 
-for i in range (0,len(vector_aaron)):
+for i in range (0,len(feat_Aaron)):
     total_set_y.append([1.,0.])
     
-for i in range(0,len(vector_adam)):
+for i in range(0,len(feat_adam)):
     total_set_y.append([0.,1.])
 
 total_set_y= np.array(total_set_y)
@@ -220,18 +228,17 @@ total_set_x,total_set_y = total_set_x[idx],total_set_y[idx]
 
 
 
+model1 = createModel1(total_set_x,total_set_y,epochs,batch_size)
+model1.evaluate(total_set_x[:300],total_set_y[:300],batch_size=32)
 
-model2 = createModel2(total_set_x,total_set_y,epochs,batch_size)
-model2.evaluate(total_set_x[:300],total_set_y[:300],batch_size=32)
 
-
-filename = 'AaronJudge' + '/' + "1.jpg"
-test=extract_surf_features(cv2.imread(filename))
+filename = 'AdamSandler' + '/' + "6.jpg"
+test=extract_lbp_features(cv2.imread(filename,0))
 test = test.T
 test = test.reshape(-1,1)
 
 
-model2.predict(test,verbose=1)
+model1.predict(test,verbose=1)
 
 
 
